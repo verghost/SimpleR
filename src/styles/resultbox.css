@@ -1,0 +1,98 @@
+/*
+	Styles for SourTools
+*/
+
+#resultbox {
+	font-family: "Segoe UI", "San Francisco", "Ubuntu", "Fira Sans", "Roboto", "Arial", "Helvetica", sans-serif;
+	color: var(--resultbox-tc);
+	transition-property: min-width, min-height, max-width, max-height;
+	transition-duration: 400ms;
+}
+
+/* Result Box */
+#resultbox .resultbox-box {
+	position: fixed;
+	overflow: hidden;
+	box-sizing: border-box;
+	width: max-content;
+	height: max-content;
+	max-width: 300px;
+	max-height: 200px;
+	z-index: 2147483646;
+	background-color: var(--resultbox-bg);
+	box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.08);
+	border-radius: 3px;
+	transition-property: opacity, visibility;
+	transition-duration: 400ms;
+	opacity: 0;
+	visibility: hidden;
+}
+
+#resultbox .resultbox-box.filled {
+	opacity: 1;
+	visibility: visible;
+}
+
+#resultbox p {
+	margin: 0;
+}
+
+#resultbox .resultbox-drag {
+	height: 15px;
+	cursor: grab;
+}
+
+#resultbox .resultbox-result {
+	padding: 0px 15px 15px;
+}
+
+#resultbox .resultbox-text {
+	font-size: 14px;
+	display: block;
+	word-wrap: break-word;
+}
+
+/* Romainzations */
+#resultbox .resultbox-romanization-audiobtn {
+	position: fixed;
+}
+#resultbox .resultbox-romanization {
+	padding: 0px 15px 15px;
+}
+
+/* Dictionary Definitions */
+#resultbox .resultbox-dictdef-word {
+	font-size: 16px;
+	font-weight: bold;
+	border-bottom: 1px dotted black;
+	margin-bottom: 1px;
+	padding-bottom: 1px;
+}
+
+#resultbox .resultbox-dictdef-defs {
+	font-size: 11px;
+	list-style-type: decimal;
+	margin: 0px;
+	padding-top: 2px;
+	padding-bottom: 2px;
+	padding-left: 15px;
+}
+
+#resultbox .resultbox-dictdef-defs li {
+	list-style-type: inherit;
+}
+
+#resultbox .resultbox-dictdef-synonyms b {
+	color: grey;
+}
+
+#resultbox .resultbox-dictdef-attrib {
+	border-top: 1px dotted black;
+	font-size: 10px;
+	text-align: center;
+}
+
+:root {
+	--resultbox-bg: #fff;
+	--resultbox-tc: #000;
+}

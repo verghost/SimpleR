@@ -1,0 +1,8 @@
+{
+	"appName": {
+		"message": "SimpleR"
+	},
+    "appDescript": {
+        "message": "A romanizer, definition finder and audio pronunciation helper in the style of SimpleTranslate."
+    }
+}

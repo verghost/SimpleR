@@ -1,0 +1,49 @@
+{
+	"manifest_version": 2,
+	"name": "__MSG_appName__",
+	"author": "Verghost",
+	"version": "0.1",
+	"default_locale": "en",
+	"description": "__MSG_appDescript__",
+	
+	"permissions": ["<all_urls>", "webNavigation", "activeTab", "tabs", "storage", "contextMenus"],
+	
+	"icons": {
+		"512": "img/icons/512.png",
+		"128": "img/icons/128.png",
+		"64":  "img/icons/64.png",
+		"48":  "img/icons/48.png",
+		"32":  "img/icons/32.png",
+		"16":  "img/icons/16.png"
+	},
+	
+	"web_accessible_resources": [
+	  "img/play.gif",
+	  "img/pause.gif"
+	],
+	
+	"background": {
+		"page":  "background.html"
+	},
+	
+	"content_scripts": [
+		{
+			"all_frames": true,
+			"matches": ["*://*/*"],
+			"js": ["lib/sourlib.js", "content.js"],
+			"css": ["styles/resultbox.css"]
+		}
+	],
+	
+	"options_ui": {
+		"page": "html/settings.html",
+		"open_in_tab": true
+	},
+	
+	"browser_specific_settings": {
+	  "gecko": {
+		"id": "{810202f0-1fdd-4e7c-9ece-0140809d914f}",
+		"strict_min_version": "74.0"
+	  }
+	}
+}
