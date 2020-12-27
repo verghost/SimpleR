@@ -12,13 +12,6 @@ var SimpleR_defaults = {
 		"cmRM-doTryTTS": false
 	},
 	"extra": {
-		// Extra data used for handling settings (stored seperately so they don't get saved by export)
-		//	Current keys are: 
-		//		-> displayText: Used for titles on settings page
-		//		-> customControl: Forces use of custom type of setting control, otherwise "typeof value" is used
-		//		-> strictType: Forces strict typing on setting values; some conversions will be tried (can't be a custom type)
-		//		-> min and/or max: specify min/max to input values (must specify strictType: "number")
-		//	NOTE: Some keys are type-specific or rely upon other keys being defined in a certain way; check settings.js
 		"cm-doContentCache": {displayText: "Cache results from the context menu (right-click menu) actions", strictType: "boolean"},
 		"cmDD-doTryAudioPronunciation": {displayText: "Try to grab audio pronunciations", strictType: "boolean"},
 		"cmRM-doTryTTS": {displayText: "Try to grab text-to-speech audio", strictType: "boolean"}
