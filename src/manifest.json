@@ -6,7 +6,7 @@
 	"default_locale": "en",
 	"description": "__MSG_appDescript__",
 	
-	"permissions": ["<all_urls>", "webNavigation", "activeTab", "tabs", "storage", "contextMenus"],
+	"permissions": ["http://*/*", "https://*/*", "ftp://*/*", "webNavigation", "activeTab", "tabs", "storage", "contextMenus"],
 	
 	"icons": {
 		"512": "img/icons/512.png",
@@ -29,7 +29,7 @@
 	"content_scripts": [
 		{
 			"all_frames": true,
-			"matches": ["*://*/*"],
+			"matches": ["http://*/*", "https://*/*", "ftp://*/*"],
 			"js": ["lib/sourlib.js", "content.js"],
 			"css": ["styles/resultbox.css"]
 		}

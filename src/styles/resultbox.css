@@ -51,11 +51,12 @@
 	display: block;
 	word-wrap: break-word;
 }
-
-/* Romainzations */
-#resultbox .resultbox-romanization-audiobtn {
+#resultbox .resultbox-audiobtn {
+	display: inline-block;
 	position: fixed;
 }
+
+/* Romainzations */
 #resultbox .resultbox-romanization {
 	padding: 0px 15px 15px;
 }

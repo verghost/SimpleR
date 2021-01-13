@@ -94,7 +94,7 @@ async function tryClose(fade_out) {
 
 // romanize audio
 var rmAudioIndex = -1;
-var getTTSFragments = function(t, arr=null, recurs=false) {
+var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from google tts; constructs text fragments for google's servers
 	const cThreshVal = 200;
 	let fragArr = [], puncRegex = /([?.,;:!][ ]+)|([\u3001\u3002\uff01\uff08\uff09\uff0c\uff0e\uff1a\uff1b\uff1f][ ]?)/g;
 	for(var d = 0; puncRegex.test(t); ) {
@@ -141,7 +141,7 @@ var getTTSFragments = function(t, arr=null, recurs=false) {
 	}
 }, answerResult = function(a, t, l) {
 	if(SIMPLER_DO_ROMANIZE_AUDIO) {
-		const answerElem = sourlib.elemFromString(`<main class="resultbox-romanization"><img class="resultbox-romanization-audiobtn" src="${playURL}"></img><br>${a}</main>`);						
+		const answerElem = sourlib.elemFromString(`<main class="resultbox-romanization"><img class="resultbox-audiobtn" src="${playURL}"></img><br>${a}</main>`);						
 		const imgTag = answerElem.children[0];
 		imgTag.onclick = () => {
 			const audioElem = document.getElementById("sourtools-audio");
@@ -160,7 +160,7 @@ var getTTSFragments = function(t, arr=null, recurs=false) {
 
 // dictdef audio
 var tryAudio = function(word, result, url=null) {
-	let imgTag = sourlib.elemFromString(`<img class="resultbox-dictdef-audio" src="${playURL}"></img>`);
+	let imgTag = sourlib.elemFromString(`<img class="resultbox-audiobtn" src="${playURL}"></img>`);
 	let audioElem = sourlib.elemFromString(`<audio id="sourtools-audio" style="display: none"></audio>`);
 	imgTag.appendChild(audioElem);
 	result.children[0].appendChild(imgTag);
