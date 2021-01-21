@@ -14,9 +14,9 @@
 	position: fixed;
 	overflow: hidden;
 	box-sizing: border-box;
-	width: max-content;
+	width: min-content;
 	height: max-content;
-	max-width: 300px;
+	min-width: 300px;
 	max-height: 200px;
 	z-index: 2147483646;
 	background-color: var(--resultbox-bg);
@@ -53,12 +53,7 @@
 }
 #resultbox .resultbox-audiobtn {
 	display: inline-block;
-	position: fixed;
-}
-
-/* Romainzations */
-#resultbox .resultbox-romanization {
-	padding: 0px 15px 15px;
+	position: absolute;
 }
 
 /* Dictionary Definitions */

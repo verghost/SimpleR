@@ -5,6 +5,7 @@ var SIMPLER_DO_CONTEXT_CACHE = false,
 	 SIMPLER_DO_DICTIONARY_AUDIO = false,
 	 SIMPLER_DO_ROMANIZE_AUDIO = false;
 
+var rBoxLastPos = null; // last position of result box
 var c_cache = {
 	"romanize": {},
 	"dictdef": {}
@@ -19,31 +20,25 @@ function closeBox(e) {
 
 function spawnRBox(content) {
 	if(!content) {
-		if(SOURTOOLS_DEBUG) console.log(`[SourTools] Error: spawnRBox got undefined or null.`);
+		if(SOURTOOLS_DEBUG) console.log(`[SimpleR] Error: spawnRBox got undefined or null.`);
 		return;
 	}
 	const isText = (typeof content === "string");
 	var rRoot = sourlib.elemFromString(`<div id="resultbox" class="resultbox"></div>`); // root element
 	var rBox = document.createElement("div"); // actual box
 	
-	var pos;
+	// Determine result box position
+	const rbMinWidth = 300, rbMinHeight = 200;
+	var pos = { x: (window.innerWidth - rbMinWidth) / 2, y: window.innerHeight / 2 }; // default postion is center-screen
 	try {
 		const element = document.activeElement; // Get position of selection
 		let selectedRect = (element.tagName === "INPUT" || element.tagName === "TEXTAREA")? element.getBoundingClientRect() : window.getSelection().getRangeAt(0).getBoundingClientRect();
-		const posX = (selectedRect.left + selectedRect.width / 2) - 150;
-		pos = {
-			x: (posX < 0) ? (posX + 150) : posX,
-			y: selectedRect.bottom
-		};
-	} catch(e) {
-		pos = { // default postion is center-screen if something goes wrong
-			x: content.innerWidth,
-			y: window.innerHeight
-		};
-	}
-	
-	if((window.innerHeight - pos.y) < 200) pos.y -= 250 - (window.innerHeight - pos.y);
-	if((window.innerWidth - pos.x) < 300) pos.x -= 350 - (window.innerWidth - pos.x);
+		const posX = selectedRect.left + ((selectedRect.width - rbMinWidth) / 2);
+		if(posX > 0) pos = { x: posX, y: selectedRect.bottom }; // new calculated position (if valid)
+		else if(rBoxLastPos) pos = rBoxLastPos; // last known position (if available)
+	} catch(e) {}
+	if((window.innerHeight - pos.y) < rbMinHeight) pos.y -= (rbMinHeight + 50) - (window.innerHeight - pos.y); // final position adjustments
+	if((window.innerWidth - pos.x) < rbMinWidth) pos.x -= (rbMinWidth + 50) - (window.innerWidth - pos.x);
 	
 	rBox.style = `top: ${pos.y}px; left:${pos.x}px;`; // template literals ftw
 	rBox.className = "resultbox-box";
@@ -71,7 +66,7 @@ function spawnRBox(content) {
 		rBox.style.overflowY = "scroll";
 	}
 	rBox.className = "resultbox-box filled"; // tell the rbox it's been given the goods
-	document.addEventListener('click', closeBox); // add el to remove the box when the user clicks on trigger.
+	document.addEventListener('mouseup', closeBox); // add el to remove the box when the user clicks on trigger.
 	return rBox;
 }
 
@@ -82,7 +77,7 @@ async function tryClose(fade_out) {
 					(document.getElementsByClassName("resultbox-box filled")[0] != null);
 	if (r && isFilled) {
 		if(SIMPLER_DO_ROMANIZE_AUDIO || SIMPLER_DO_DICTIONARY_AUDIO) { // Handle audio
-			document.getElementById("sourtools-audio")?.remove?.();
+			document.getElementById("simpleR-audio")?.remove?.();
 			rmAudioIndex = -1;
 		}
 		document.getElementsByClassName("resultbox-box filled")[0].className = "resultbox-box";
@@ -118,7 +113,7 @@ var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from go
 }, tryTTSAudio = async function (a, t, lang) {
 	const TTS_SPEED = 1, fragArr = getTTSFragments(t);
 	let elemArr = [], trying = true;
-	let blobElem = sourlib.elemFromString(`<div id="sourtools-audio" style="display: none"></div>`);
+	let blobElem = sourlib.elemFromString(`<div id="simpleR-audio" style="display: none"></div>`);
 	fragArr.forEach(function(frag, i) {
 		let url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(frag)}&tl=${lang}&total=${fragArr.length}&idx=${i}&textlen=${frag.length}&client=gtx&ttsspeed=${TTS_SPEED}`;
 		sourlib.req({ url: url, method: "GET", responseType: "blob", cb_ok: function(data) { // get a blob to avoid csp problems
@@ -126,10 +121,10 @@ var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from go
 			let elem = sourlib.elemFromString(`<audio preload="none" myindex="${i}"><source src="${blobURL}" type="audio/mpeg"></audio>`);
 			// Janky way to create an audio stream from tts fragments
 			elem.onplay = function(e) { rmAudioIndex = i; };
-			elem.onended = function(e) { this.nextElementSibling && this.nextElementSibling.play && this.nextElementSibling.play(); };
+			elem.onended = function(e) { (this.nextElementSibling && this.nextElementSibling.play && this.nextElementSibling.play()) || document.getElementsByClassName("resultbox-audiobtn")[0].click(); };
 			elemArr[data.x] = elem;
 		}, cb_err: function(data) { 
-			if(SOURTOOLS_DEBUG) console.log(`[SourTools] Failed to create blob ${data.x} using URL ${data.url}`);
+			if(SOURTOOLS_DEBUG) console.log(`[SimpleR] Failed to create blob ${data.x} using URL ${data.url}`);
 			trying = false; 
 		}, cb_send_extra: i });
 	});
@@ -141,10 +136,10 @@ var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from go
 	}
 }, answerResult = function(a, t, l) {
 	if(SIMPLER_DO_ROMANIZE_AUDIO) {
-		const answerElem = sourlib.elemFromString(`<main class="resultbox-romanization"><img class="resultbox-audiobtn" src="${playURL}"></img><br>${a}</main>`);						
+		const answerElem = sourlib.elemFromString(`<div class="resultbox-result"><img class="resultbox-audiobtn" src="${playURL}"></img><br><p id="resultbox-p" class="resultbox-text">${a}</p></div>`);						
 		const imgTag = answerElem.children[0];
 		imgTag.onclick = () => {
-			const audioElem = document.getElementById("sourtools-audio");
+			const audioElem = document.getElementById("simpleR-audio");
 			if(imgTag.src === playURL) {
 				if(!audioElem) tryTTSAudio(a, t, l);
 				else if(rmAudioIndex !== -1) audioElem.children[rmAudioIndex]?.play?.();
@@ -161,11 +156,11 @@ var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from go
 // dictdef audio
 var tryAudio = function(word, result, url=null) {
 	let imgTag = sourlib.elemFromString(`<img class="resultbox-audiobtn" src="${playURL}"></img>`);
-	let audioElem = sourlib.elemFromString(`<audio id="sourtools-audio" style="display: none"></audio>`);
+	let audioElem = sourlib.elemFromString(`<audio id="simpleR-audio" style="display: none"></audio>`);
 	imgTag.appendChild(audioElem);
 	result.children[0].appendChild(imgTag);
 	
-	// Set up janky custom media player
+	// Set up media player
 	imgTag.onclick = function(e) { if(this.src === playURL) { audioElem.play(); } else { audioElem.pause(); } };
 	audioElem.onplay = function(e) { imgTag.src = pauseURL; };
 	audioElem.onpause = function(e) { imgTag.src = playURL; };
@@ -321,7 +316,7 @@ var c_tools = {
 			switch(action) {
 				case "try":
 					sourlib.req({url: api.url, method: "GET", cb_ok: function(data) {
-						try { api.callback(data); return; } catch(e) { if(SOURTOOLS_DEBUG) console.log(`[SourTools] Got an error in ${key}: ${e}`); }
+						try { api.callback(data); return; } catch(e) { if(SOURTOOLS_DEBUG) console.log(`[SimpleR] Got an error in ${key}: ${e}`); }
 						dictAction("fail", key); // fail
 					}, cb_err: function() { dictAction("fail", key); }});
 					break;

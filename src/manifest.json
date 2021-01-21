@@ -2,11 +2,11 @@
 	"manifest_version": 2,
 	"name": "__MSG_appName__",
 	"author": "Verghost",
-	"version": "0.4",
+	"version": "0.5",
 	"default_locale": "en",
 	"description": "__MSG_appDescript__",
 	
-	"permissions": ["http://*/*", "https://*/*", "ftp://*/*", "webNavigation", "activeTab", "tabs", "storage", "contextMenus"],
+	"permissions": ["<all_urls>", "storage", "contextMenus"],
 	
 	"icons": {
 		"512": "img/icons/512.png",
@@ -29,7 +29,7 @@
 	"content_scripts": [
 		{
 			"all_frames": true,
-			"matches": ["http://*/*", "https://*/*", "ftp://*/*"],
+			"matches": ["http://*/*", "https://*/*", "<all_urls>"],
 			"js": ["lib/sourlib.js", "content.js"],
 			"css": ["styles/resultbox.css"]
 		}
