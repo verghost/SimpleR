@@ -36,8 +36,7 @@ var sourlib = {
 			if(SOURTOOLS_DEBUG && dbgMsg) console.log(`[SourTools] ${dbgMsg}`);
 		}, cb_fired = false, tStart = 0;
 		xhr.open(reqObj.method, reqObj.url, true);
-		xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded;charset=utf-8"); // set headers
-		reqObj.addHeaders?.forEach?.(h => { xhr.setRequestHeader(h[0], h[1]); });
+		xhr.setRequestHeader("Content-Type", (reqObj.ct || "application/x-www-form-urlencoded;charset=utf-8")); // set headers
 		xhr.responseType = reqObj.responseType || "text";
 		xhr.timeout = reqObj.timeout || SOUTOOLS_REQ_TIMEOUT; // Set timeout
 		xhr.ontimeout = function() { fireCB(reqObj.cb_err, `Connection to ${reqObj.url} timed out.`); };
@@ -45,6 +44,8 @@ var sourlib = {
 		xhr.onerror = function() { fireCB(reqObj.cb_err, `got status code: ${this.status}`); }; // Set onerror
 		xhr.onabort = function() { fireCB(reqObj.cb_err, `Request to ${reqObj.url} was aborted!`); }; // Set onabort
 		xhr.onprogress = reqObj.cb_onprog; // Set onprogress (even if it's undefined)
+		xhr.withCredentials = reqObj.withCredentials || false;
+		reqObj.addHeaders?.forEach?.(h => { xhr.setRequestHeader(h[0], h[1]); });
 		if(reqObj.useTimer) tStart = performance.now(); // start timer
 		xhr.send(reqObj.send_data);
 	},

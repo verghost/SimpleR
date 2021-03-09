@@ -1,6 +1,5 @@
 'use_strict';
 (function() {
-const playURL = browser.runtime.getURL("/img/play.gif"), pauseURL = browser.runtime.getURL("/img/pause.gif");
 var SIMPLER_DO_CONTEXT_CACHE = false,
 	 SIMPLER_DO_DICTIONARY_AUDIO = false,
 	 SIMPLER_DO_ROMANIZE_AUDIO = false;
@@ -8,6 +7,7 @@ var SIMPLER_DO_CONTEXT_CACHE = false,
 var rBoxLastPos = null; // last position of result box
 var c_cache = {
 	"romanize": {},
+	"tts": {},
 	"dictdef": {}
 }, fromSTCache = function(t, k) { return (SIMPLER_DO_CONTEXT_CACHE) ? c_cache[t][k] : null; },
 	doSTCache 	= function(t, k, v) { return (SIMPLER_DO_CONTEXT_CACHE) ? (c_cache[t][k] = v) : v; };
@@ -87,9 +87,10 @@ async function tryClose(fade_out) {
 	}
 }
 
-// romanize audio
+// audio stuff
 var rmAudioIndex = -1;
-var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from google tts; constructs text fragments for google's servers
+const playURL = browser.runtime.getURL("/img/play.gif"), pauseURL = browser.runtime.getURL("/img/pause.gif");
+var getTTSFragments = function(t, arr=null, recurs=false) { // RE'd code from google tts; constructs text fragments for google's servers
 	const cThreshVal = 200;
 	let fragArr = [], puncRegex = /([?.,;:!][ ]+)|([\u3001\u3002\uff01\uff08\uff09\uff0c\uff0e\uff1a\uff1b\uff1f][ ]?)/g;
 	for(var d = 0; puncRegex.test(t); ) {
@@ -110,101 +111,118 @@ var getTTSFragments = function(t, arr=null, recurs=false) { // re'd code from go
 	}
 	if(!(/^[\s\xa0]*$/.test(tempStr))) { tempArr.push(tempStr.trim()); }
 	return tempArr;
-}, tryTTSAudio = async function (a, t, lang) {
-	const TTS_SPEED = 1, fragArr = getTTSFragments(t);
-	let elemArr = [], trying = true;
-	let blobElem = sourlib.elemFromString(`<div id="simpleR-audio" style="display: none"></div>`);
-	fragArr.forEach(function(frag, i) {
-		let url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(frag)}&tl=${lang}&total=${fragArr.length}&idx=${i}&textlen=${frag.length}&client=gtx&ttsspeed=${TTS_SPEED}`;
-		sourlib.req({ url: url, method: "GET", responseType: "blob", cb_ok: function(data) { // get a blob to avoid csp problems
-			let blobURL = window.URL.createObjectURL(data.r);
-			let elem = sourlib.elemFromString(`<audio preload="none" myindex="${i}"><source src="${blobURL}" type="audio/mpeg"></audio>`);
-			// Janky way to create an audio stream from tts fragments
-			elem.onplay = function(e) { rmAudioIndex = i; };
-			elem.onended = function(e) { (this.nextElementSibling && this.nextElementSibling.play && this.nextElementSibling.play()) || document.getElementsByClassName("resultbox-audiobtn")[0].click(); };
-			elemArr[data.x] = elem;
-		}, cb_err: function(data) { 
-			if(SOURTOOLS_DEBUG) console.log(`[SimpleR] Failed to create blob ${data.x} using URL ${data.url}`);
-			trying = false; 
-		}, cb_send_extra: i });
-	});
-	while(trying && elemArr.length !== fragArr.length) await sourlib.sleep(100);
-	if(trying) {
-		elemArr.forEach(function(elem) { blobElem.appendChild(elem); });
-		document.body.appendChild(blobElem);
-		blobElem.children[0].play();
+}, tryTTS = async function(t, l, p, e="gtt") {
+	const TTS_SPEED = 1;
+	let elemArr = [], trying = true, succeeded = 0;
+	let audioElem = sourlib.elemFromString(`<div id="simpleR-audio" style="display: none"></div>`);
+	
+	let fragArr, uf, pf, rparams = {};
+	switch(e) {
+		case "gtt":
+			fragArr = getTTSFragments(t);
+			uf = function(fr, fri) { return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(fr)}&tl=${l}&total=${fragArr.length}&idx=${fri}&textlen=${fr.length}&client=gtx&ttsspeed=${TTS_SPEED}`; };
+			pf = function(data) { return window.URL.createObjectURL(data.r); }; // currently, we wait for browser to call revokeObjectURL() (bad memory management)
+			rparams = { method: "GET", responseType: "blob"  }; // get a blob to avoid csp problems
+			break;
+		case "wiki":
+			fragArr = t.split(" ");
+			uf = function(fr, fri) { return `https://en.wiktionary.org/w/index.php?title=${encodeURIComponent(fr)}&printable=yes`; };
+			pf = function(data) {
+				let sources = new DOMParser().parseFromString(data.r, "text/html").getElementsByTagName("source");
+				for(let i = 0; i < sources.length; i++)
+					if(/en-/i.test(sources[i].src)) return sources[i].src;
+				return null;
+			};
+			rparams = { method: "GET" };
+			break;
 	}
-}, answerResult = function(a, t, l) {
-	if(SIMPLER_DO_ROMANIZE_AUDIO) {
-		const answerElem = sourlib.elemFromString(`<div class="resultbox-result"><img class="resultbox-audiobtn" src="${playURL}"></img><br><p id="resultbox-p" class="resultbox-text">${a}</p></div>`);						
-		const imgTag = answerElem.children[0];
-		imgTag.onclick = () => {
-			const audioElem = document.getElementById("simpleR-audio");
-			if(imgTag.src === playURL) {
-				if(!audioElem) tryTTSAudio(a, t, l);
-				else if(rmAudioIndex !== -1) audioElem.children[rmAudioIndex]?.play?.();
-				imgTag.src = pauseURL;
-			} else {
-				if(rmAudioIndex !== -1) audioElem.children[rmAudioIndex]?.pause?.();
-				imgTag.src = playURL;
+	
+	fragArr.forEach(function(frag, frag_i) {
+		sourlib.req({ url: uf(frag, frag_i), ...rparams,
+		cb_ok: function(data) { // parse audio element array
+			let a_url;
+			try {
+				a_url = pf(data);
+				if(!a_url) {
+					trying = false;
+					console.log(`[SimpleR] Engine ${e} failed at frag ${data.x}`);
+				}
+			} catch(e) { // fail
+				console.log(`[SimpleR] Engine ${e} failed at frag ${data.x}`);
+				trying = false;
 			}
-		};
-		spawnRBox(answerElem);
-	} else spawnRBox(a);
-};
-
-// dictdef audio
-var tryAudio = function(word, result, url=null) {
-	let imgTag = sourlib.elemFromString(`<img class="resultbox-audiobtn" src="${playURL}"></img>`);
-	let audioElem = sourlib.elemFromString(`<audio id="simpleR-audio" style="display: none"></audio>`);
-	imgTag.appendChild(audioElem);
-	result.children[0].appendChild(imgTag);
+			// Janky way to create an audio stream from tts fragments
+			let elem = sourlib.elemFromString(`<audio preload="none" myindex="${data.x}"><source src="${a_url}"></audio>`); // type="audio/mpeg"
+			elem.onplay = function(e) { rmAudioIndex = data.x; };
+			elem.onended = function(e) { this?.nextElementSibling?.play?.() || document.getElementsByClassName("resultbox-audiobtn")[0].click(); };
+			elemArr[data.x] = elem;
+			succeeded++;
+		}, cb_err: function(data) {
+			if(SOURTOOLS_DEBUG) console.log(`[SimpleR] Failed to create blob ${data.x} using URL ${data.url}`);
+			trying = false;
+		}, cb_send_extra: frag_i });
+	});
 	
-	// Set up media player
-	imgTag.onclick = function(e) { if(this.src === playURL) { audioElem.play(); } else { audioElem.pause(); } };
-	audioElem.onplay = function(e) { imgTag.src = pauseURL; };
-	audioElem.onpause = function(e) { imgTag.src = playURL; };
+	while(trying && succeeded < fragArr.length) await sourlib.sleep(100);
+	if(trying) {
+		elemArr.forEach(function(elem, i) { audioElem.appendChild(elem); });
+		p.appendChild(audioElem);
+	}
+	return trying;
+}, tryAudio = function(t, l, c, ou, e, backup) { // t = text, l = lang, c = content, ou = override url, e = engine
+	let rBox, imgTag;
+	if(!c || typeof c === "string") {
+		c = c || t;
+		rBox = sourlib.elemFromString(`<div class="resultbox-result"><img class="resultbox-audiobtn"></img><br><p id="resultbox-p" class="resultbox-text">${c}</p></div>`);	
+	} else rBox = c;
+	imgTag = rBox.getElementsByTagName("img")[0];
+	imgTag.src = playURL;
 	
-	if(!!url) { // Did we already get audio from the initial request? Then use that.
-		audioElem.appendChild(sourlib.elemFromString(`<source src="${url}">`));
-		spawnRBox(result);
+	if(!!ou) { // Did we already get audio from the initial request? Then use that.
+		let audioElem = sourlib.elemFromString(`<audio id="simpleR-audio" style="display: none"></audio>`);
+		imgTag.appendChild(audioElem);
+		
+		// Set up media player
+		imgTag.onclick = function(e) { if(this.src === playURL) { audioElem.play(); } else { audioElem.pause(); } };
+		audioElem.onplay = function(e) { imgTag.src = pauseURL; };
+		audioElem.onpause = function(e) { imgTag.src = playURL; };
+		
+		audioElem.appendChild(sourlib.elemFromString(`<source src="${ou}">`));
+		spawnRBox(rBox);
 		return;
 	}
 	
-	// For audio, we just grab it first since it's just a single request.
-	sourlib.req({ // First we try wiktionary for (potentially) human-recorded pronunciations
-		url: "https://en.wiktionary.org/w/index.php?title=${encodeURIComponent(word)}&printable=yes",
-		method: "GET",
-		cb_ok: function(data) {
-			let sources = new DOMParser().parseFromString(data.r, "text/html").getElementsByTagName("source");
-			for(let i = 0; i < sources.length; i++) {
-				if(/en-/i.test(sources[i].src)) {
-					audioElem.appendChild(sourlib.elemFromString(`<source src="${sources[i].src}">`));
-					break;
-				}
-			}
-			if(audioElem.children.length === 0) { // If that fails, then we go google automated TTS.
-				sourlib.req({url: `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(word)}&tl=en&total=1&idx=0&textlen=${word.length}&client=gtx&ttsspeed=1`, method: "GET", responseType: "blob", cb_ok: function(_data) {
-					audioElem.appendChild(sourlib.elemFromString(`<source src="${window.URL.createObjectURL(_data.r)}">`));
-					spawnRBox(result);
-				}});
-			} else spawnRBox(result);
+	imgTag.onclick = () => {
+		const audioElem = document.getElementById("simpleR-audio");
+		if(imgTag.src === playURL) {
+			if(!audioElem) tryTTS(t, l, imgTag, e).then((ret) => {
+				if(ret) document.getElementById("simpleR-audio").children[0].play();
+				else if(backup) tryTTS(t, l, imgTag, backup).then((ret) => { (ret && document.getElementById("simpleR-audio").children[0].play()) || (imgTag.src = playURL); });
+				else imgTag.src = playURL;
+			});
+			else if(rmAudioIndex > -1) audioElem.children[rmAudioIndex]?.play?.();
+			imgTag.src = pauseURL;
+		} else {
+			if(rmAudioIndex !== -1) audioElem.children[rmAudioIndex]?.pause?.();
+			imgTag.src = playURL;
 		}
-	});
+	};
+	spawnRBox(rBox);
 };
 
 var c_tools = {
 	"romanize": function(data) {
-		let text = data.selText.trim() // trim whitespace.
+		let text = data.selText.trim(); // trim whitespace.
 		text = text.replace(/\n/gm, ""); // remove newline.
 		text = text.replace(/  +/g, ' '); // remove multiple spaces in between words.
 		if(text.length > 1600) { // should prob. make this less arbitrary
 			spawnRBox("Too big!");
 			return;
 		}
+		
 		const temp = fromSTCache("romanize", text); // Check for cached result
 		if(temp) {
-			answerResult(temp[0], text, temp[1]);
+			tryAudio(text, temp[1], temp[0], null, "gtt");
 			return;
 		}
 		
@@ -220,7 +238,7 @@ var c_tools = {
 					const answer = gapi[0]?.[gapi[0].length - 1]?.[3];
 					if(answer && lang && lang != "en") {
 						doSTCache("romanize", text, [answer, lang]); // cache if we get an answer
-						answerResult(answer, text, lang);
+						tryAudio(text, lang, answer, null, "gtt");
 						return;
 					}
 				}
@@ -229,7 +247,7 @@ var c_tools = {
 		});
 	},
 	"dictdef": function(data) {
-		var word = data.selText.replace(/^\s+|\s+$|\n/gm, "");
+		var word = data.selText.replace(/^\s+|\s+$|\n/gm, ""); // remove unnecessary spaces and newlines
 		if(!word.match(/\s/g)) { // Single word
 			word = word.replace(/[^A-Za-z-]/g, ""); // Test for non-english chars and do formatting (ie. remove '.', '!', etc...)
 			if(word == "") {
@@ -273,7 +291,7 @@ var c_tools = {
 								// broken up the same way that definitions are. They seem to come in groups limited to 16.
 								let wid = d[1];
 								deflist[count++] = { type: defs[i][0], definition: d[0], example: null, synonyms: (function(syns) {
-									// Should we always treat syns / syns[j][0] as arrays? Check a word that gives 1 synonym.
+									// TODO: Should we always treat syns / syns[j][0] as arrays? Check a word that gives 1 synonym.
 									if(syns && typeof syns === "object") {
 										let ret = [];
 										for(let j = 0; j < syns.length; j++) {
@@ -328,10 +346,10 @@ var c_tools = {
 					if(params.deflist.length > 0) {
 						let result = sourlib.elemFromString( // Base html string
 							`<div class="resultbox-result">
-								<p class="resultbox-dictdef-word">${params.word}${(params.phonetic) ? " (" + params.phonetic + ")" : ""}</p>
+								<p class="resultbox-dictdef-word">${params.word}${(params.phonetic) ? " (" + params.phonetic + ")" : ""}` + ((SIMPLER_DO_DICTIONARY_AUDIO && `<img class="resultbox-audiobtn"></img>`) || "") + `</p>
 								<ol class="resultbox-dictdef-defs">
 								</ol>
-							</div>`), defOL = result.children[1], dl = params.deflist, syns;
+							</div>`), defOL = result.getElementsByClassName("resultbox-dictdef-defs")[0], dl = params.deflist, syns;
 						for(let i = 0; i < dl.length; i++) { // Fill in result object
 							let li = document.createElement("li");
 							li.appendChild(sourlib.elemFromString(`<p class="resultbox-dictdef-def"><b class="resultbox-dictdef-type">${dl[i].type}:</b> ${dl[i].definition}</p>`));
@@ -341,7 +359,7 @@ var c_tools = {
 						}
 						result.appendChild(sourlib.elemFromString(`<p class="resultbox-dictdef-attrib">Taken from ${api.name}</p>`));
 						doSTCache("dictdef", params.word, result); // Cache
-						if(SIMPLER_DO_DICTIONARY_AUDIO) tryAudio(word, result, params.audio); // Try to add audio
+						if(SIMPLER_DO_DICTIONARY_AUDIO) tryAudio(word, "en", result, params.audio, "wiki", "gtt"); // Try to add audio
 						else spawnRBox(result);
 					} else dictAction("fail", key);
 					break;
@@ -350,6 +368,8 @@ var c_tools = {
 		}
 	}
 };
+
+
 
 browser.runtime.onMessage.addListener(function(data, sender) {
 	if(data.selText) { // Is this running on a selection context?

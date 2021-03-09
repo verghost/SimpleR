@@ -3,8 +3,8 @@
 // Default Settings: these cover things that can be changed in the settings menu, as well as other stuff.
 var SimpleR_defaults = {
 	"tools" : { // Tools in context menu
-		"tool-dictdef": { on: true, title: "Dictionary Definition", contextstr: "selection", needs_resultbox: true },
-		"tool-romanize": { on: true, title: "Romanize", contextstr: "selection", needs_resultbox: true }
+		"tool-dictdef": { title: "Dictionary Definition", contextstr: "selection", needs_resultbox: true },
+		"tool-romanize": { title: "Romanize", contextstr: "selection", needs_resultbox: true }
 	},
 	"user": {
 		"cm-doContentCache": true,
@@ -33,11 +33,12 @@ function onMenuClick(info, tab) { // Callback for context menu click
 }
 
 function tryInit(obj) { // attempt to initialize settings and context menus
+	console.log("[SimpleR] Trying init...");
 	try {
 		let settings = obj;
 		for(let toolName in obj["tools"]) { // Add content tools
+			if(toolName == "tool-tts" && !obj["user"]["cm-enableTTS"]) continue;
 			let tool = obj["tools"][toolName];
-			if(!tool["on"]) continue;
 			browser.contextMenus.create({
 				id: toolName,
 				title: tool.title,

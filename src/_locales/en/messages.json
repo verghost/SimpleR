@@ -3,6 +3,6 @@
 		"message": "SimpleR"
 	},
     "appDescript": {
-        "message": "A romanizer/transliterator, English word definition finder and audio pronunciation helper in the style of SimpleTranslate by sienori (simple-translate.sienori.com)."
+        "message": "An English word definition finder, romanizer/transliterator and audio pronunciation helper in the style of SimpleTranslate by sienori (simple-translate.sienori.com)."
     }
 }
